@@ -4,7 +4,7 @@ import picostdlib/[gpio, pio, time]
 let helloProgram {.importc: "hello_program".}: PioProgram
 
 proc helloProgramGetDefaultConfig(offset: uint): PioSmConfig
-  {.importc: "pio_sm_config hello_program_get_default_config".}
+  {.importc: "hello_program_get_default_config".}
 {.pop.}
 
 proc initPioHelloProgram(pio: PioInstance, sm: PioStateMachine, offset: uint, pin: Gpio) =
