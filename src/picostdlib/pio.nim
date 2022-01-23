@@ -1,6 +1,6 @@
 import gpio
 
-{.push header: "pio.h".}
+{.push header: "hardware/pio.h".}
 type
   PioSmConfig* {.importc: "pio_sm_config", bycopy.} = object
     clkdiv {.importc: "clkdiv".}: uint32
@@ -8,7 +8,9 @@ type
     shiftctrl {.importc: "shiftctrl".}: uint32
     pinctrl {.importc: "pinctrl".}: uint32
 
-  PioInstance* {.importc: "pio_hw_t", nodecl.} = object
+  PioInstanceObj {.importc: "pio_hw_t", nodecl.} = object
+
+  PioInstance* = ptr PioInstanceObj
 
   PioStateMachine* = range[0'u .. 3'u]
 
@@ -22,7 +24,7 @@ let
 # PIO State Machine Config
 # Private C API
 
-{.push header: "pio.h".}
+{.push header: "hardware/pio.h".}
 proc smConfigSetOutPins(c: ptr PioSmConfig; outBase: uint; outCount: uint)
   {.importc: "sm_config_set_out_pins".}
 
@@ -72,7 +74,7 @@ template setClkDiv*(c: var PioSmConfig, divisor: static[1.0 .. 65536.0]) =
   
 # Main PIO API
 
-{.push header: "pio.h".}
+{.push header: "hardware/pio.h".}
 proc gpioInit*(pio: PioInstance; pin: Gpio)
   {.importc: "pio_gpio_init".}
 
@@ -96,7 +98,7 @@ proc clearInstructionMemory*(pio: PioInstance) {.importc: "pio_clear_instruction
 
 # State Machine API
 
-{.push header: "pio.h".}
+{.push header: "hardware/pio.h".}
 proc setPins*(pio: PioInstance; sm: PioStateMachine; pinValues: set[Gpio])
   {.importc: "pio_sm_set_pins".}
 
@@ -150,11 +152,13 @@ proc init*(pio: PioInstance; sm: uint; initialpc: uint; config: PioSmConfig) =
 
 # FIFO API
 
+{.push header: "hardware/pio.h".}
 proc putBlocking*(pio: PioInstance; sm: PioStateMachine; data: uint32)
   {.importc: "pio_sm_put_blocking".}
 
 proc getBlocking*(pio: PioInstance; sm: PioStateMachine): uint32
   {.importc: "pio_sm_get_blocking".}
+{.pop}
 
 #[
 
