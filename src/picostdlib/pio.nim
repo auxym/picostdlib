@@ -92,9 +92,6 @@ proc removeProgram*(pio: PioInstance; program: ptr PioProgram; loadedOffset: uin
   {.importc: "pio_remove_program".}
 
 proc clearInstructionMemory*(pio: PioInstance) {.importc: "pio_clear_instruction_memory".}
-
-proc smInit*(pio: PioInstance; sm: uint; initialpc: uint; config: ptr PioSmConfig) {.
-    importc: "pio_sm_init".}
 {.pop}
 
 # State Machine API
@@ -121,7 +118,43 @@ proc unclaim*(pio: PioInstance; sm: PioStateMachine) {.importc: "pio_sm_unclaim"
 proc claimUnusedSm*(pio: PioInstance; required: bool): int {.importc: "pio_claim_unused_sm".}
 
 proc isClaimed*(pio: PioInstance; sm: PioStateMachine): bool {.importc: "pio_sm_is_claimed".}
+
+proc smInit(pio: PioInstance; sm: uint; initialpc: uint; config: ptr PioSmConfig)
+  {.importc: "pio_sm_init".}
+
+proc setEnabled*(pio: PioInstance; sm: PioStateMachine; enabled: bool)
+  {.importc: "pio_sm_set_enabled".}
+
+proc setSmMaskEnabled*(pio: PioInstance; mask: set[PioStateMachine]; enabled: bool)
+  {.importc: "pio_set_sm_mask_enabled".}
+
+proc restart*(pio: PioInstance; sm: PioStateMachine)
+  {.importc: "pio_sm_restart".}
+
+proc restart*(pio: PioInstance; mask: set[PioStateMachine])
+  {.importc: "pio_restart_sm_mask".}
+
+proc clkdivRestart*(pio: PioInstance; sm: PioStateMachine)
+  {.importc: "pio_sm_clkdiv_restart".}
+
+proc clkdivRestart*(pio: PioInstance; mask: set[PioStateMachine])
+  {.importc: "pio_clkdiv_restart_sm_mask".}
+
+proc enableInSync*(pio: PioInstance; mask: set[PioStateMachine])
+  {.importc: "pio_enable_sm_mask_in_sync".}
 {.pop}
+
+proc init*(pio: PioInstance; sm: uint; initialpc: uint; config: PioSmConfig) =
+  var configCopy = config 
+  smInit(pio, sm, initialpc, configCopy.addr)
+
+# FIFO API
+
+proc putBlocking*(pio: PioInstance; sm: PioStateMachine; data: uint32)
+  {.importc: "pio_sm_put_blocking".}
+
+proc getBlocking*(pio: PioInstance; sm: PioStateMachine): uint32
+  {.importc: "pio_sm_get_blocking".}
 
 #[
 
@@ -223,52 +256,6 @@ proc pioGetDreq*(pio: Pio; sm: uint; isTx: bool): uint {.inline.} =
 
 ## !!!Ignored construct:  typedef struct pio_program { const uint16_t * instructions ; uint8_t length ; int8_t origin ;  required instruction memory origin or -1 } __packed pio_program_t ;
 ## Error: token expected: ; but got: [identifier]!!!
-
-proc pioSmSetEnabled*(pio: Pio; sm: uint; enabled: bool) {.inline.} =
-  checkPioParam(pio)
-  checkSmParam(sm)
-  pio.ctrl = (pio.ctrl and not (1u'i64 shl sm)) or (boolToBit(enabled) shl sm)
-
-
-proc pioSetSmMaskEnabled*(pio: Pio; mask: uint32; enabled: bool) {.inline.} =
-  checkPioParam(pio)
-  checkSmMask(mask)
-  pio.ctrl = (pio.ctrl and not mask) or (if enabled: mask else: 0u'i64)
-
-
-proc pioSmRestart*(pio: Pio; sm: uint) {.inline.} =
-  checkPioParam(pio)
-  checkSmParam(sm)
-  pio.ctrl = pio.ctrl or 1u'i64 shl (pio_Ctrl_Sm_Restart_Lsb + sm)
-
-
-proc pioRestartSmMask*(pio: Pio; mask: uint32) {.inline.} =
-  checkPioParam(pio)
-  checkSmMask(mask)
-  pio.ctrl = pio.ctrl or
-      (mask shl pio_Ctrl_Sm_Restart_Lsb) and pio_Ctrl_Sm_Restart_Bits
-
-
-proc pioSmClkdivRestart*(pio: Pio; sm: uint) {.inline.} =
-  checkPioParam(pio)
-  checkSmParam(sm)
-  pio.ctrl = pio.ctrl or 1u'i64 shl (pio_Ctrl_Clkdiv_Restart_Lsb + sm)
-
-
-proc pioClkdivRestartSmMask*(pio: Pio; mask: uint32) {.inline.} =
-  checkPioParam(pio)
-  checkSmMask(mask)
-  pio.ctrl = pio.ctrl or
-      (mask shl pio_Ctrl_Clkdiv_Restart_Lsb) and pio_Ctrl_Clkdiv_Restart_Bits
-
-
-proc pioEnableSmMaskInSync*(pio: Pio; mask: uint32) {.inline.} =
-  checkPioParam(pio)
-  checkSmMask(mask)
-  pio.ctrl = pio.ctrl or
-      (((mask shl pio_Ctrl_Clkdiv_Restart_Lsb) and pio_Ctrl_Clkdiv_Restart_Bits) or
-      ((mask shl pio_Ctrl_Sm_Enable_Lsb) and pio_Ctrl_Sm_Enable_Bits))
-
 
 type
   PioInterruptSource* {.size: sizeof(cint).} = enum
@@ -482,21 +469,6 @@ proc pioSmGetTxFifoLevel*(pio: Pio; sm: uint): uint {.inline.} =
   var mask: uint32
   return (pio.flevel shr bitoffs) and mask
 
-
-proc pioSmPutBlocking*(pio: Pio; sm: uint; data: uint32) {.inline.} =
-  checkPioParam(pio)
-  checkSmParam(sm)
-  while pioSmIsTxFifoFull(pio, sm):
-    tightLoopContents()
-  pioSmPut(pio, sm, data)
-
-
-proc pioSmGetBlocking*(pio: Pio; sm: uint): uint32 {.inline.} =
-  checkPioParam(pio)
-  checkSmParam(sm)
-  while pioSmIsRxFifoEmpty(pio, sm):
-    tightLoopContents()
-  return pioSmGet(pio, sm)
 
 
 proc pioSmDrainTxFifo*(pio: Pio; sm: uint) {.importc: "pio_sm_drain_tx_fifo",
