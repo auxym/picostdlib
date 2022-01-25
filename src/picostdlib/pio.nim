@@ -16,6 +16,11 @@ type
 
   PioProgram* {.importc: "pio_program_t", nodecl.} = object
 
+  PioFifoJoin* = enum
+    none = 0,
+    tx = 1,
+    rx = 2,
+
 let
   pio0* {.importc, nodecl.}: PioInstance 
   pio1* {.importc, nodecl.}: PioInstance 
@@ -42,6 +47,18 @@ proc smConfigSetSideset(c: ptr PioSmConfig; bitCount: uint; optional: bool;
 
 proc smConfigSetClkdivIntFrac(c: ptr PioSmConfig; divInt: uint16; divFrac: uint8)
   {.importc: "sm_config_set_clkdiv_int_frac".}
+
+proc smConfigSetClkdiv(c: ptr PioSmConfig, divisor: cfloat)
+  {.importc: "sm_config_set_clkdiv".}
+
+proc smConfigSetInShift(c: ptr PioSmConfig; shiftRight: bool; autopush: bool;
+  pushThreshold: uint) {.importc: "sm_config_set_in_shift".}
+
+proc smConfigSetOutShift(c: ptr PioSmConfig; shiftRight: bool; autopull: bool;
+  pullThreshold: uint) {.importc: "sm_config_set_out_shift".}
+
+proc smConfigSetFifoJoin(c: ptr PioSmConfig; join: PioFifoJoin)
+  {.importc: "sm_config_set_fifo_join".}
 {.pop.}
 
 # PIO State Machine Config
@@ -65,12 +82,29 @@ proc setSideset*(c: var PioSmConfig; bitCount: uint; optional: bool; pinDirs: bo
 proc setClkDiv*(c: var PioSmConfig; divInt: uint16; divFrac: uint8) =
   smConfigSetClkdivIntFrac(c.addr, divInt, divFrac)
 
+proc setClkDiv*(c: var PioSmConfig; divisor: float32) =
+  smConfigSetClkdiv(c.addr, divisor)
+
 template setClkDiv*(c: var PioSmConfig, divisor: static[1.0 .. 65536.0]) =
+  ## Template to set floating point clock divisor when it is known at
+  ## compile-time. All the float calculation is done in a  static context,
+  ## so we can avoid pulling in software-float code in the final binary.
   static:
     let
       divInt = divisor.uint16
       divFrac: uint8 = ((divisor - divInt.float32) * 256).toInt.uint8
   smConfigSetClkdivIntFrac(c.addr, divInt, divFrac)
+
+proc setInShift*(c: var PioSmConfig; shiftRight: bool; autopush: bool;
+    pushThreshold: uint) =
+  smConfigSetInShift(c.addr, shiftRight, autopush, pushThreshold)
+
+proc setOutShift*(c: var PioSmConfig; shiftRight: bool; autopull: bool;
+    pullThreshold: uint) =
+  smConfigSetOutShift(c.addr, shiftRight, autopull, pullThreshold)
+
+proc setFifoJoin*(c: var PioSmConfig; join: PioFifoJoin)  =
+  smConfigSetFifoJoin(c.addr, join)
   
 # Main PIO API
 
@@ -84,10 +118,10 @@ proc canAddProgram*(pio: PioInstance; program: ptr PioProgram): bool
 proc canAddProgram*(pio: PioInstance; program: ptr PioProgram; offset: uint): bool
   {.importc: "pio_can_add_program_at_offset".}
 
-proc addProgram*(pio: PioInstance; program: ptr PioProgram): uint
+proc addProgram(pio: PioInstance; program: ptr PioProgram): uint
   {.importc: "pio_add_program".}
 
-proc addProgram*(pio: PioInstance; program: ptr PioProgram; offset: uint)
+proc addProgram(pio: PioInstance; program: ptr PioProgram; offset: uint)
   {.importc: "pio_add_program_at_offset".}
 
 proc removeProgram*(pio: PioInstance; program: ptr PioProgram; loadedOffset: uint)
@@ -95,6 +129,14 @@ proc removeProgram*(pio: PioInstance; program: ptr PioProgram; loadedOffset: uin
 
 proc clearInstructionMemory*(pio: PioInstance) {.importc: "pio_clear_instruction_memory".}
 {.pop}
+
+proc addProgram*(pio: PioInstance; program: PioProgram): uint =
+  var p = program
+  addProgram(pio, p.addr)
+
+proc addProgram*(pio: PioInstance; program: PioProgram; offset: uint) =
+  var p = program
+  addProgram(pio, p.addr, offset)
 
 # State Machine API
 
@@ -124,7 +166,7 @@ proc isClaimed*(pio: PioInstance; sm: PioStateMachine): bool {.importc: "pio_sm_
 proc smInit(pio: PioInstance; sm: uint; initialpc: uint; config: ptr PioSmConfig)
   {.importc: "pio_sm_init".}
 
-proc setEnabled*(pio: PioInstance; sm: PioStateMachine; enabled: bool)
+proc setEnabled(pio: PioInstance; sm: PioStateMachine; enabled: bool)
   {.importc: "pio_sm_set_enabled".}
 
 proc setSmMaskEnabled*(pio: PioInstance; mask: set[PioStateMachine]; enabled: bool)
@@ -149,6 +191,12 @@ proc enableInSync*(pio: PioInstance; mask: set[PioStateMachine])
 proc init*(pio: PioInstance; sm: uint; initialpc: uint; config: PioSmConfig) =
   var configCopy = config 
   smInit(pio, sm, initialpc, configCopy.addr)
+
+proc enable*(pio: PioInstance; sm: PioStateMachine) {.inline.} =
+  pio.setEnabled(sm, true)
+
+proc disable*(pio: PioInstance; sm: PioStateMachine) {.inline.} =
+  pio.setEnabled(sm, false)
 
 # FIFO API
 
@@ -176,34 +224,6 @@ proc smConfigSetJmpPin*(c: ptr PioSmConfig; pin: uint) {.inline.} =
   c.execctrl = (c.execctrl and not pio_Sm0Execctrl_Jmp_Pin_Bits) or
       (pin shl pio_Sm0Execctrl_Jmp_Pin_Lsb)
 
-
-proc smConfigSetInShift*(c: ptr PioSmConfig; shiftRight: bool; autopush: bool;
-                        pushThreshold: uint) {.inline.} =
-  validParamsIf(pio, pushThreshold <= 32)
-  c.shiftctrl = (c.shiftctrl and
-      not (pio_Sm0Shiftctrl_In_Shiftdir_Bits or pio_Sm0Shiftctrl_Autopush_Bits or
-      pio_Sm0Shiftctrl_Push_Thresh_Bits)) or
-      (boolToBit(shiftRight) shl pio_Sm0Shiftctrl_In_Shiftdir_Lsb) or
-      (boolToBit(autopush) shl pio_Sm0Shiftctrl_Autopush_Lsb) or
-      ((pushThreshold and 0x1f) shl pio_Sm0Shiftctrl_Push_Thresh_Lsb)
-
-
-proc smConfigSetOutShift*(c: ptr PioSmConfig; shiftRight: bool; autopull: bool;
-                         pullThreshold: uint) {.inline.} =
-  validParamsIf(pio, pullThreshold <= 32)
-  c.shiftctrl = (c.shiftctrl and
-      not (pio_Sm0Shiftctrl_Out_Shiftdir_Bits or pio_Sm0Shiftctrl_Autopull_Bits or
-      pio_Sm0Shiftctrl_Pull_Thresh_Bits)) or
-      (boolToBit(shiftRight) shl pio_Sm0Shiftctrl_Out_Shiftdir_Lsb) or
-      (boolToBit(autopull) shl pio_Sm0Shiftctrl_Autopull_Lsb) or
-      ((pullThreshold and 0x1f) shl pio_Sm0Shiftctrl_Pull_Thresh_Lsb)
-
-
-proc smConfigSetFifoJoin*(c: ptr PioSmConfig; join: PioFifoJoin) {.inline.} =
-  validParamsIf(pio, join == pio_Fifo_Join_None or join == pio_Fifo_Join_Tx or
-      join == pio_Fifo_Join_Rx)
-  ## !!!Ignored construct:  c -> shiftctrl = ( c -> shiftctrl & ( uint ) ~ ( PIO_SM0_SHIFTCTRL_FJOIN_TX_BITS | PIO_SM0_SHIFTCTRL_FJOIN_RX_BITS ) ) | ( ( ( uint ) join ) << PIO_SM0_SHIFTCTRL_FJOIN_TX_LSB ) ;
-  ## Error: token expected: ) but got: ->!!!
 
 
 proc smConfigSetOutSpecial*(c: ptr PioSmConfig; sticky: bool; hasEnablePin: bool;
