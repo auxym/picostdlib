@@ -3,12 +3,26 @@ import picostdlib/[pio, gpio, clock, time]
 import std/math # Compile-time only
 
 const
+  # GPIO pin connected to LED data input
   ws2812DataPin = 1.Gpio
-  ledBrightnessDiv = 4 # reduce LED brightness by dividing the value
 
+  # reduce LED brightness by dividing the value
+  ledBrightnessDiv = 4
+
+  # Total number of LEDs
+  numLeds = 3
+
+  # Set to false to regular RGB 2812, or true for similar RGBW LEDs such as
+  # SK2812RGBW or some Inolux IN-PI55 variants.
+  isRgbw = false
+
+# Choose PIO instance to use for the ws2812 program (pio0 or pio1)
 let ws2812Pio = pio0
 
 {.push header: "ws2812.pio.h".}
+# Import the PIO program, constants and default config from the header
+# that is generated at compile time by PIOASM.
+
 proc ws2812_program_get_default_config(offset: uint): PioSmConfig {.importc.}
 
 let
@@ -27,11 +41,14 @@ proc initWs2812*(
 
   var cfg = ws2812_program_get_default_config offset
   cfg.setSidesetPins pin
-  cfg.setOutShift(shiftRight=false, autopull=true, pullThreshold=32)
   cfg.setFifoJoin PioFifoJoin.tx
 
-  const ws2812Freq = 800_000 # ws2812 data bitrate in bits/s
+  when isRgbw:
+    cfg.setOutShift(shiftRight=false, autopull=true, pullThreshold=32)
+  else:
+    cfg.setOutShift(shiftRight=false, autopull=true, pullThreshold=24)
 
+  const ws2812Freq = 800_000 # ws2812 data bitrate in bits/s
   let
     cyclesPerBit = ws2812_T1 + ws2812_T2 + ws2812_T3
     clockdiv = getHz(ClockIndex.sys).float / (ws2812Freq * cyclesPerBit.float)
@@ -42,6 +59,8 @@ proc initWs2812*(
 
 proc ws2812Put*(pioIns: PioInstance, sm: PioStateMachine,
     r: uint8, g: uint8, b: uint8, w: uint8) =
+  ## Set the color of a single LED
+  ## Call in fast sequence to set multiple LEDs in series
   var val: uint32 = w or (b.uint32 shl 8) or (r.uint32 shl 16) or (g.uint32 shl 24)
   pioIns.putBlocking(sm, val)
 
@@ -50,6 +69,9 @@ type
   RgbColor = array[PrimaryColor, uint8]
 
 proc createRainbowTable(): seq[RgbColor] {.compileTime.} =
+  ## Create a look-up table of RGB rainbow colors, evaluated at compile time
+  ## Based on "sine wave" algorithm from:
+  ## https://www.instructables.com/How-to-Make-Proper-Rainbow-and-Random-Colors-With-/
   const
     maxAngle = 3.0 * PI
     numSteps = 100
@@ -79,13 +101,18 @@ const ColorTable = createRainbowTable()
 
 proc nextColor(sm: PioStateMachine) =
   var i {.global.} = 0
-  let color = ColorTable[i]
-  ws2812Put(ws2812Pio, sm,
-    (color[colRed] div ledBrightnessDiv),
-    (color[colGreen] div ledBrightnessDiv),
-    (color[colBlue] div ledBrightnessDiv),
-    0
-  )
+
+  const colorOffset = max(1, ColorTable.len div numLeds)
+
+  for j in 0 ..< numLeds:
+    let colorIndex = (i + (colorOffset * j)) mod ColorTable.len
+    let color = ColorTable[colorIndex]
+    ws2812Put(ws2812Pio, sm,
+      (color[colRed] div ledBrightnessDiv),
+      (color[colGreen] div ledBrightnessDiv),
+      (color[colBlue] div ledBrightnessDiv),
+      0
+    )
 
   i.inc
   if i > ColorTable.high: i = 0

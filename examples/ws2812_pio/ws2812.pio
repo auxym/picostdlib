@@ -14,14 +14,14 @@
 .side_set 1
 
 ; Timings for WS2812 LEDs
-; .define public T1 2
-; .define public T2 5
-; .define public T3 3
+.define public T1 2
+.define public T2 5
+.define public T3 3
 
 ; Use the following timings for Inolux IN-PI55 LEDs
-.define public T1 2
-.define public T2 4
-.define public T3 2
+; .define public T1 2
+; .define public T2 4
+; .define public T3 2
 
 .wrap_target
 bitloop:
