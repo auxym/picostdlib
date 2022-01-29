@@ -67,6 +67,9 @@ proc smConfigSetFifoJoin(c: ptr PioSmConfig; join: PioFifoJoin)
 proc setOutPins*(c: var PioSmConfig, pins: Slice[Gpio]) =
   smConfigSetOutPins(c.addr, pins.a.uint, pins.len.uint)
 
+proc setOutPin*(c: var PioSmConfig, pin: Gpio) =
+  smConfigSetOutPins(c.addr, pin.uint, 1)
+
 proc setInPins*(c: var PioSmConfig; inBase: Gpio) =
   smConfigSetInPins(c.addr, inBase.uint)
 
@@ -146,12 +149,13 @@ proc addProgram*(pio: PioInstance; program: PioProgram; offset: uint) =
   var p = program
   addProgram(pio, p.addr, offset)
 
+proc removeProgram*(pio: PioInstance; program: PioProgram; loadedOffset: uint) =
+  var p = program
+  removeProgram(pio, p.addr, loadedOffset)
+
 # State Machine API
 
 {.push header: "hardware/pio.h".}
-proc setPins(pio: PioInstance; sm: PioStateMachine; pinValues: set[Gpio])
-  {.importc: "pio_sm_set_pins".}
-
 proc setPinsWithMask(pio: PioInstance; sm: PioStateMachine; pinValues: uint32; pinMask: uint32)
   {.importc: "pio_sm_set_pins_with_mask".}
 
