@@ -1,4 +1,5 @@
 import picostdlib/[gpio, time, tusb]
+import usbconfig
 
 type TimestampMicros = uint64
 

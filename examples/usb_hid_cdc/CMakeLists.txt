@@ -25,7 +25,7 @@ target_sources(usb_hid_cdc PUBLIC
         ${MyCSources}
         )
 
-target_include_directories(usb_hid_cdc PUBLIC ${CMAKE_CURRENT_LIST_DIR}/../src)
+target_include_directories(usb_hid_cdc PUBLIC ${CMAKE_CURRENT_LIST_DIR}/build/nimcache)
 
 # Add directory containing this CMakeLists file to include search path.
 # This is required so that the nimbase.h file is found. Other headers
