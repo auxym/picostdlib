@@ -109,4 +109,7 @@ configurationDescriptorCallback(index):
   # Use the toArrayLit macro to generate a static byte array and assign
   # to a {.global.} variable to ensure that the pointer is always valid.
   let fullCfgBytes {.global.} = toArrayLit(fullCfg)
-  return fullCfgBytes[0].addr
+  return fullCfgBytes[0].unsafeAddr
+
+stringDescriptorCallback(index, langId):
+  return nil

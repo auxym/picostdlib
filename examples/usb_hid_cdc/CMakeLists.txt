@@ -20,11 +20,6 @@ if(EXISTS "../${Imports}")
 file(GLOB MyCSources build/nimcache/*.c)
 add_executable(usb_hid_cdc ${MyCSources})
 
-target_sources(usb_hid_cdc PUBLIC
-        ${CMAKE_CURRENT_LIST_DIR}/../src/usb_descriptors.c
-        ${MyCSources}
-        )
-
 target_include_directories(usb_hid_cdc PUBLIC ${CMAKE_CURRENT_LIST_DIR}/build/nimcache)
 
 # Add directory containing this CMakeLists file to include search path.
@@ -36,7 +31,7 @@ target_link_libraries(usb_hid_cdc tinyusb_board tinyusb_device)
 include(${Imports}) # Include our generated file
 link_imported_libs(usb_hid_cdc) # call our generated function to import all libs we're using
 
-# enable usb output, disable uart output
+# disable default usb output, since we are implementing our own USB device
 pico_enable_stdio_usb(usb_hid_cdc 0)
 pico_enable_stdio_uart(usb_hid_cdc 0)
 
