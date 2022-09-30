@@ -1,5 +1,4 @@
 {.used.}
-
 import tinyusb
 
 # Endpoint 0 max packet size, must match in the config and in the device
@@ -17,7 +16,6 @@ static:
     ep0size=Ep0Size,
   )
 
-
 # Device descriptor
 setDeviceDescriptor initDeviceDescriptor(
   usbVersion=initBcdVersion(2, 0, 0),
@@ -31,7 +29,7 @@ setDeviceDescriptor initDeviceDescriptor(
   ep0Size=Ep0Size,
   vendorId=0xCAFE,
   productId=0x4005,
-  deviceVersion=initBcdVersion(0, 1, 0),
+  deviceVersion=initBcdVersion(89, 1, 4),
   manufacturerStr=1.StringIndex,
   productStr=2.StringIndex,
   serialNumberStr=3.StringIndex,
@@ -49,11 +47,13 @@ const
     mouseReportDescriptor(id=MouseReportId) &
     gamepadReportDescriptor(id=GamepadReportId)
 
-  hidReportDescLen = len(myHidReportDescriptor)
+  hidReportDescLen = 214 #len(myHidReportDescriptor)
 
+#[
 hidReportDescriptorCallback(inst):
   let desc {.global.} = toArrayLit myHidReportDescriptor
   return desc[0].unsafeAddr
+]#
 
 # Configuration descriptor
 
@@ -81,7 +81,7 @@ const
     controlEpSize=8,
     dataEpNum=2,
     dataEpSize=64,
-    str=StringIndexNone
+    str=4.StringIndex
   )
 
   hidDesc = initCompleteHidInterface(
@@ -90,10 +90,17 @@ const
     epIn=3,
     epInSize=16,
     epInterval=5,
-    str=StringIndexNone
+    str=5.StringIndex
   )
 
 configurationDescriptorCallback(index):
+  let fullCfg {.global.} = toArrayLit(
+      configDescriptor.serialize &
+      cdcDesc.serialize &
+      hidDesc.serialize
+  )
+  return fullCfg[0].unsafeAddr
+#[
   # Can handle multiple different configurations
   if index != configDescriptor.value: return nil
 
@@ -110,6 +117,7 @@ configurationDescriptorCallback(index):
   # to a {.global.} variable to ensure that the pointer is always valid.
   let fullCfgBytes {.global.} = toArrayLit(fullCfg)
   return fullCfgBytes[0].unsafeAddr
+]#
 
-stringDescriptorCallback(index, langId):
-  return nil
+#stringDescriptorCallback(index, langId):
+#  return nil

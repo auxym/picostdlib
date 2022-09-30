@@ -20,6 +20,12 @@ if(EXISTS "../${Imports}")
 file(GLOB MyCSources build/nimcache/*.c)
 add_executable(usb_hid_cdc ${MyCSources})
 
+target_sources(
+  usb_hid_cdc PUBLIC
+  ${CMAKE_CURRENT_LIST_DIR}/../src/usb_descriptors.c
+  ${MyCSources}
+)
+
 target_include_directories(usb_hid_cdc PUBLIC ${CMAKE_CURRENT_LIST_DIR}/build/nimcache)
 
 # Add directory containing this CMakeLists file to include search path.
