@@ -47,13 +47,11 @@ const
     mouseReportDescriptor(id=MouseReportId) &
     gamepadReportDescriptor(id=GamepadReportId)
 
-  hidReportDescLen = 214 #len(myHidReportDescriptor)
+  hidReportDescLen = len(myHidReportDescriptor)
 
-#[
 hidReportDescriptorCallback(inst):
   let desc {.global.} = toArrayLit myHidReportDescriptor
   return desc[0].unsafeAddr
-]#
 
 # Configuration descriptor
 
