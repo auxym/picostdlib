@@ -92,16 +92,6 @@ const
   )
 
 configurationDescriptorCallback(index):
-  let fullCfg {.global.} = toArrayLit(
-      configDescriptor.serialize &
-      cdcDesc.serialize &
-      hidDesc.serialize
-  )
-  return fullCfg[0].unsafeAddr
-#[
-  # Can handle multiple different configurations
-  if index != configDescriptor.value: return nil
-
   # Per USB spec, a request for the configuration descriptor must
   # return the configuration descriptor and all associated interface 
   # and endpoint descriptors. Here we concatenate all the descriptors.
@@ -110,12 +100,23 @@ configurationDescriptorCallback(index):
       configDescriptor.serialize &
       cdcDesc.serialize &
       hidDesc.serialize
-  
+
   # Use the toArrayLit macro to generate a static byte array and assign
   # to a {.global.} variable to ensure that the pointer is always valid.
   let fullCfgBytes {.global.} = toArrayLit(fullCfg)
-  return fullCfgBytes[0].unsafeAddr
-]#
+
+  # Can handle multiple different configurations, here we only have one.
+  #
+  # Note on multiple configurations: `index` here is a 0-based index of
+  # defined configurations. I.e., `index` is in the range
+  # [0 .. (numConfigurations - 1)]. `index` does *not* correspond to the
+  # configuration value, which must be at least 1, and is not necessarily
+  # sequential.
+  result = case index:
+  of 0:
+    fullCfgBytes[0].unsafeAddr
+  else:
+    nil
 
 #stringDescriptorCallback(index, langId):
 #  return nil
