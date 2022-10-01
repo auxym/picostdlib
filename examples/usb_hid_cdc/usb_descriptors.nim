@@ -118,5 +118,58 @@ configurationDescriptorCallback(index):
   else:
     nil
 
-#stringDescriptorCallback(index, langId):
-#  return nil
+const
+  ManufStr = 1.StringIndex
+  ProductStr = 2.StringIndex
+  SerialStr = 3.StringIndex
+  CdcStr = 4.StringIndex
+  HidStr = 5.StringIndex
+
+const supportedLanguages = toStringDesc0([LangId.EnglishUS, LangId.French])
+const usbStrings = [
+  ManufStr: [
+    "EmbeddedNim".toStringDescriptor,
+    "Nim pour les systèmes embarqués".toStringDescriptor
+  ],
+  ProductStr: [
+    "Nim TinyUSB device".toStringDescriptor,
+    "Appareil Nim TinyuSB".toStringDescriptor
+  ],
+  SerialStr: [
+    "000-AAA".toStringDescriptor,
+    "000-AAA".toStringDescriptor
+  ],
+  CdcStr: [
+    "Nim TinyUSB Virtual Serial Port".toStringDescriptor,
+    "Port série Nim TinyUsb".toStringDescriptor
+  ],
+  HidStr:[
+    "Nim-TinyUSB combo keyboard/mouse/gamepad".toStringDescriptor,
+    "Appareil combiné clavier, souris et manette de jeux Nim-TinyUSB".toStringDescriptor
+  ]
+]
+
+stringDescriptorCallback(index, langId):
+  let
+    strs {.global.} = usbStrings
+    langs {.global.} = supportedLanguages
+
+  const existingStrings = {
+    ManufStr, ProductStr, SerialStr, CdcStr, HidStr
+  }
+
+  let sIdx = index.StringIndex
+  case sIdx
+    of 0.StringIndex:
+      return cast[ptr uint16](langs[0].unsafeAddr)
+    of existingStrings:
+      let langIndex = case langId:
+        of LangId.EnglishUS.ord: 0
+        of LangId.French.ord: 1
+        else: -1
+      if langIndex >= 0:
+        return cast[ptr uint16](strs[sIdx][langIndex][0].unsafeAddr)
+    else:
+      discard
+
+  return nil
