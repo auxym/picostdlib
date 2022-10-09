@@ -17,8 +17,12 @@ set(Imports imports.cmake)
 if(EXISTS "../${Imports}")
 
 # add program file(s)
-file(GLOB MyCSources build/nimcache/*.c)
-add_executable(usb_hid_cdc ${MyCSources})
+file(GLOB NimSources build/nimcache/*.c)
+
+# Suppress gcc warnings for nim-generated files
+set_source_files_properties(${NimSources} PROPERTIES COMPILE_OPTIONS "-w")
+
+add_executable(usb_hid_cdc ${NimSources})
 target_include_directories(usb_hid_cdc PUBLIC ${CMAKE_CURRENT_LIST_DIR}/build/nimcache)
 
 # Add directory containing this CMakeLists file to include search path.

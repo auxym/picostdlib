@@ -1,4 +1,5 @@
-import picostdlib/[gpio, time, tusb]
+import picostdlib/[gpio, time]
+import tinyusb
 import usb_descriptors
 
 type TimestampMicros = uint64
@@ -9,8 +10,8 @@ const
   LedBlinkIntervalSuspended = 2500'u64
 
   # We have 1 serial (CDC) and 1 HID interface, so each have id 0.
-  usbser = 0.UsbSerialInterface
-  hid = 0.UsbHidInterface
+  usbser = 0.CdcInstance
+  hid = 0.HidInstance
 
 var ledBlinkInterval: uint64 # ms
 
@@ -104,7 +105,7 @@ template schTask(task: proc(elapsed: TimestampMicros), rateHz: int): untyped =
   SchedulerEntry(period: 1_000_000 div rateHz, taskProc: task, elapsed: 0)
 
 # Task callable, task rate in hz
-var SchedulerTable = [
+var schedulerTable = [
   # Update LED rate every 10 ms, based on selected blink rate
   schTask(blinkLedTask, 100),
 
@@ -130,7 +131,7 @@ proc setup() =
   
   # TinyUSB initialization
   discard usbInit()
-  boardInit()
+  usbBoardInit()
 
 proc main() =
   var prevTime: TimestampMicros = 0
@@ -142,7 +143,7 @@ proc main() =
     let
       now = timeUs64()
       dt = now - prevTime
-    for entry in SchedulerTable.mitems:
+    for entry in schedulerTable.mitems:
       if entry.elapsed > entry.period:
         entry.taskproc(entry.elapsed)
         entry.elapsed = 0
